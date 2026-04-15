@@ -23,6 +23,30 @@
     "hint": "例如: 群友说,说,quote",
     "default": "群友说"
   },
+  "exemption_list": {
+    "description": "豁免列表 (QQ号，逗号分隔)",
+    "type": "string",
+    "hint": "名单里的 QQ 号不会被生成群友说",
+    "default": ""
+  },
+  "whitelist": {
+    "description": "白名单 (QQ号，逗号分隔)",
+    "type": "string",
+    "hint": "白名单用户无视豁免列表，可以对任何人（包括豁免成员和自己）生成群友说",
+    "default": ""
+  },
+  "counter_attack": {
+    "description": "反击功能",
+    "type": "bool",
+    "hint": "对豁免名单成员使用时，改为生成命令发起者自己的群友说",
+    "default": false
+  },
+  "counter_attack_text": {
+    "description": "反击时附加前缀（可选）",
+    "type": "string",
+    "hint": "发送者的台词前会加上这段文字，留空则只用用户输入",
+    "default": ""
+  },
   "bubble_bg": {
     "description": "气泡背景色 (hex 或 'white')",
     "type": "string",
@@ -31,6 +55,6 @@
   "canvas_bg": {
     "description": "画布背景色 (hex)",
     "type": "string",
-    "default": "#EBEBEB"
+    "default": "#E4E8F0"
   }
 }

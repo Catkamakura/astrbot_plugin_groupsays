@@ -1,4 +1,12 @@
-"""Pillow-based rendering of the "my_friend" style bubble image."""
+"""Pillow-based rendering of the "my_friend" style bubble image.
+
+Mimics a natural QQ group-chat screenshot:
+  - Light gray-blue page background
+  - Avatar as a circle, top-left
+  - Nickname as plain muted text, just above the bubble
+  - White speech bubble with a small tail pointing at the avatar
+  - Body text centered (both axes) inside the bubble
+"""
 
 from __future__ import annotations
 
@@ -8,26 +16,45 @@ from typing import List, Tuple
 from PIL import Image, ImageDraw, ImageFont
 
 
-# ── Tunable layout constants ──────────────────────────────────────────────
+# ── Layout constants ──────────────────────────────────────────────────────
 
-CANVAS_WIDTH = 640
-PADDING = 24
+# Canvas colors — chosen so the bubble clearly pops from the background
+CANVAS_BG_DEFAULT = (228, 232, 240)     # slightly deeper than #EAEDF4 for contrast
+BUBBLE_BG_DEFAULT = (255, 255, 255)
+
+# Avatar
+AVATAR_X, AVATAR_Y = 20, 22
 AVATAR_SIZE = 96
-NAME_GAP = 6                # gap between nickname baseline and bubble top
-BUBBLE_PAD = 18             # inner padding inside the bubble
-BUBBLE_RADIUS = 20
-BUBBLE_TAIL_OFFSET_Y = 28   # y offset of the little triangle tail
-FONT_SIZE_TEXT = 30
-FONT_SIZE_NAME = 20
-LINE_SPACING = 10           # extra pixels between wrapped lines
+AVATAR_BOTTOM = AVATAR_Y + AVATAR_SIZE          # 118
 
-# Colors
-COLOR_NAME = (140, 140, 140)
-COLOR_TEXT = (30, 30, 30)
+# Nickname — natural gray, positioned just above the bubble
+NICKNAME_X = 130                                # aligned with bubble left edge
+NICKNAME_Y = 18                                 # near top of the canvas
+NICKNAME_FONT_SIZE = 22
+NICKNAME_COLOR = (134, 140, 154)                # #868C9A muted gray-blue
+
+# Speech bubble
+BUBBLE_X = 130                                  # 14px gap right of avatar
+BUBBLE_Y = 56                                   # leaves ~16px gap below nickname
+BUBBLE_INNER_PAD = 20
+BUBBLE_RADIUS = 22
+BUBBLE_TAIL_Y_OFFSET = 22                       # tail aligns near avatar's upper half
+BUBBLE_FG = (34, 34, 38)
+BUBBLE_MIN_W = 170
+# Keep bubble at least as tall as avatar bottom (+ a hair) so they feel balanced
+BUBBLE_MIN_H = (AVATAR_BOTTOM - BUBBLE_Y) + 12  # = 74
+
+# Body text
+TEXT_FONT_SIZE = 32
+TEXT_LINE_SPACING = 10
+TEXT_MAX_WIDTH = 500                            # wrap width
+
+# Canvas margins
+CANVAS_RIGHT_PAD = 28
+CANVAS_BOTTOM_PAD = 24
 
 
 def _parse_color(c: str, fallback: Tuple[int, int, int]) -> Tuple[int, int, int]:
-    """Accept `#RRGGBB`, `#RGB`, or a named keyword. Returns an RGB tuple."""
     if not c:
         return fallback
     c = c.strip()
@@ -40,24 +67,21 @@ def _parse_color(c: str, fallback: Tuple[int, int, int]) -> Tuple[int, int, int]
                 return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))  # type: ignore[return-value]
             except ValueError:
                 return fallback
-    if c.lower() == "white":
+    lowered = c.lower()
+    if lowered == "white":
         return (255, 255, 255)
-    if c.lower() == "black":
+    if lowered == "black":
         return (0, 0, 0)
     return fallback
 
 
 def _wrap_cjk(text: str, font: ImageFont.FreeTypeFont, max_width: int) -> List[str]:
-    """Greedy character-by-character wrap. Works for CJK where words are
-    single glyphs, and degrades gracefully for Latin mixed content (will
-    break inside words — acceptable for meme images)."""
+    """Greedy per-character wrapping — atomic CJK glyphs make this safe."""
     lines: List[str] = []
-
     for raw_line in text.split("\n"):
         if not raw_line:
             lines.append("")
             continue
-
         cur = ""
         cur_w = 0.0
         for ch in raw_line:
@@ -70,12 +94,10 @@ def _wrap_cjk(text: str, font: ImageFont.FreeTypeFont, max_width: int) -> List[s
                 cur_w += w
         if cur:
             lines.append(cur)
-
     return lines
 
 
 def _circular_crop(img: Image.Image, size: int) -> Image.Image:
-    """Return a size×size RGBA image containing `img` cropped to a circle."""
     img = img.convert("RGBA").resize((size, size), Image.LANCZOS)
     mask = Image.new("L", (size, size), 0)
     ImageDraw.Draw(mask).ellipse((0, 0, size, size), fill=255)
@@ -90,79 +112,101 @@ def render_my_friend(
     text: str,
     font_path: str,
     *,
-    canvas_bg: str = "#EBEBEB",
+    canvas_bg: str = "#E4E8F0",
     bubble_bg: str = "#FFFFFF",
 ) -> bytes:
-    """Render a 'my_friend' style chat bubble image.
+    """Render a group-chat 'my_friend' style image.
 
     Args:
-        avatar_bytes: raw bytes of the avatar image (any Pillow-supported format).
-        nickname: already-sanitized nickname string.
+        avatar_bytes: raw avatar image bytes.
+        nickname: already-sanitized nickname.
         text: already-sanitized body text.
-        font_path: filesystem path to a CJK-capable font file.
-        canvas_bg, bubble_bg: hex color strings.
+        font_path: path to a CJK-capable font file.
+        canvas_bg: page background (defaults to soft QQ-chat gray-blue).
+        bubble_bg: bubble fill color (defaults to white).
 
     Returns:
-        PNG-encoded image bytes.
+        PNG-encoded bytes.
     """
-    canvas_rgb = _parse_color(canvas_bg, (235, 235, 235))
-    bubble_rgb = _parse_color(bubble_bg, (255, 255, 255))
+    canvas_rgb = _parse_color(canvas_bg, CANVAS_BG_DEFAULT)
+    bubble_rgb = _parse_color(bubble_bg, BUBBLE_BG_DEFAULT)
 
-    font_text = ImageFont.truetype(font_path, FONT_SIZE_TEXT)
-    font_name = ImageFont.truetype(font_path, FONT_SIZE_NAME)
+    font_text = ImageFont.truetype(font_path, TEXT_FONT_SIZE)
+    font_name = ImageFont.truetype(font_path, NICKNAME_FONT_SIZE)
 
-    # Compute bubble geometry
-    text_area_x0 = PADDING + AVATAR_SIZE + PADDING
-    max_text_width = CANVAS_WIDTH - text_area_x0 - PADDING - BUBBLE_PAD * 2
-    lines = _wrap_cjk(text, font_text, max_text_width) or [""]
-    line_h = FONT_SIZE_TEXT + LINE_SPACING
+    # ── 1. Wrap & measure body text ──────────────────────────────────
+    lines = _wrap_cjk(text, font_text, TEXT_MAX_WIDTH) or [""]
+    wrapped = "\n".join(lines)
 
-    longest = max((font_text.getlength(l) for l in lines), default=0)
-    bubble_w = int(min(max_text_width, longest) + BUBBLE_PAD * 2)
-    bubble_w = max(bubble_w, 120)
-    bubble_h = int(line_h * len(lines) + BUBBLE_PAD * 2 - LINE_SPACING)
+    _probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    tb = _probe.multiline_textbbox(
+        (0, 0), wrapped, font=font_text, spacing=TEXT_LINE_SPACING
+    )
+    text_w = tb[2] - tb[0]
+    text_h = tb[3] - tb[1]
 
-    name_h = FONT_SIZE_NAME + NAME_GAP
-    right_col_h = name_h + bubble_h
-    canvas_h = PADDING * 2 + max(AVATAR_SIZE, right_col_h)
+    # ── 2. Measure nickname ──────────────────────────────────────────
+    name_display = nickname or "(匿名)"
+    name_w = int(font_name.getlength(name_display))
 
-    # Canvas
-    canvas = Image.new("RGB", (CANVAS_WIDTH, canvas_h), canvas_rgb)
+    # ── 3. Bubble dimensions ─────────────────────────────────────────
+    bubble_w = max(
+        text_w + BUBBLE_INNER_PAD * 2,
+        BUBBLE_MIN_W,
+    )
+    bubble_h = max(text_h + BUBBLE_INNER_PAD * 2, BUBBLE_MIN_H)
+
+    # ── 4. Canvas dimensions (adaptive) ─────────────────────────────
+    # Width must accommodate the wider of bubble or nickname
+    right_col_w = max(int(bubble_w), name_w)
+    canvas_w = BUBBLE_X + right_col_w + CANVAS_RIGHT_PAD
+    canvas_h = BUBBLE_Y + int(bubble_h) + CANVAS_BOTTOM_PAD
+
+    canvas = Image.new("RGB", (canvas_w, canvas_h), canvas_rgb)
     draw = ImageDraw.Draw(canvas)
 
-    # Avatar
+    # ── 5. Avatar ────────────────────────────────────────────────────
     try:
         avatar_img = Image.open(BytesIO(avatar_bytes))
     except Exception as e:
         raise ValueError(f"invalid avatar image: {e}") from e
     avatar_circle = _circular_crop(avatar_img, AVATAR_SIZE)
-    canvas.paste(avatar_circle, (PADDING, PADDING), avatar_circle)
+    canvas.paste(avatar_circle, (AVATAR_X, AVATAR_Y), avatar_circle)
 
-    # Nickname
-    draw.text((text_area_x0, PADDING - 2), nickname,
-              fill=COLOR_NAME, font=font_name)
+    # ── 6. Nickname (plain gray text, just above the bubble) ─────────
+    draw.text(
+        (NICKNAME_X, NICKNAME_Y),
+        name_display,
+        fill=NICKNAME_COLOR,
+        font=font_name,
+    )
 
-    # Bubble
-    bx0 = text_area_x0
-    by0 = PADDING + name_h
-    bx1 = bx0 + bubble_w
-    by1 = by0 + bubble_h
-    draw.rounded_rectangle((bx0, by0, bx1, by1),
-                           radius=BUBBLE_RADIUS, fill=bubble_rgb)
+    # ── 7. Bubble ────────────────────────────────────────────────────
+    bx0, by0 = BUBBLE_X, BUBBLE_Y
+    bx1 = bx0 + int(bubble_w)
+    by1 = by0 + int(bubble_h)
+    draw.rounded_rectangle(
+        (bx0, by0, bx1, by1), radius=BUBBLE_RADIUS, fill=bubble_rgb
+    )
 
-    # Tail triangle pointing at the avatar
-    tail = [
-        (bx0, by0 + BUBBLE_TAIL_OFFSET_Y),
-        (bx0 - 10, by0 + BUBBLE_TAIL_OFFSET_Y + 6),
-        (bx0, by0 + BUBBLE_TAIL_OFFSET_Y + 12),
-    ]
-    draw.polygon(tail, fill=bubble_rgb)
+    # Tail: left-pointing triangle near top of bubble, aimed at avatar
+    tail_y = by0 + BUBBLE_TAIL_Y_OFFSET
+    draw.polygon(
+        [(bx0, tail_y), (bx0 - 10, tail_y + 7), (bx0, tail_y + 14)],
+        fill=bubble_rgb,
+    )
 
-    # Body text
-    tx = bx0 + BUBBLE_PAD
-    ty = by0 + BUBBLE_PAD - 2
-    for i, line in enumerate(lines):
-        draw.text((tx, ty + i * line_h), line, fill=COLOR_TEXT, font=font_text)
+    # ── 8. Body text — centered in bubble, bearing-compensated ───────
+    text_cx = bx0 + (int(bubble_w) - text_w) // 2 - tb[0]
+    text_cy = by0 + (int(bubble_h) - text_h) // 2 - tb[1]
+    draw.multiline_text(
+        (text_cx, text_cy),
+        wrapped,
+        fill=BUBBLE_FG,
+        font=font_text,
+        spacing=TEXT_LINE_SPACING,
+        align="left",
+    )
 
     buf = BytesIO()
     canvas.save(buf, format="PNG", optimize=True)
