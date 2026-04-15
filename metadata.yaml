@@ -1,0 +1,5 @@
+name: astrbot_plugin_groupsays
+desc: "群友说 表情包生成器 — @某人 + 一段话 → my_friend 风格聊天气泡图"
+version: 0.1.0
+author: Yukin
+repo: ""

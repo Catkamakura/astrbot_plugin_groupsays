@@ -1,0 +1,36 @@
+{
+  "max_nickname_length": {
+    "description": "群昵称最大长度",
+    "type": "int",
+    "hint": "超过会截断并加省略号",
+    "default": 20
+  },
+  "max_text_length": {
+    "description": "正文最大长度",
+    "type": "int",
+    "hint": "超过会截断",
+    "default": 200
+  },
+  "strip_emoji_in_nickname": {
+    "description": "清除昵称中的 emoji",
+    "type": "bool",
+    "hint": "默认移除；关闭后未渲染的 emoji 会显示为 □",
+    "default": true
+  },
+  "command_aliases": {
+    "description": "命令别名（逗号分隔）",
+    "type": "string",
+    "hint": "例如: 群友说,说,quote",
+    "default": "群友说"
+  },
+  "bubble_bg": {
+    "description": "气泡背景色 (hex 或 'white')",
+    "type": "string",
+    "default": "#FFFFFF"
+  },
+  "canvas_bg": {
+    "description": "画布背景色 (hex)",
+    "type": "string",
+    "default": "#EBEBEB"
+  }
+}
