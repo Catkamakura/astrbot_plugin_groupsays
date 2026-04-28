@@ -22,41 +22,39 @@ from PIL import Image, ImageDraw, ImageFont
 CANVAS_BG_DEFAULT = (228, 232, 240)     # slightly deeper than #EAEDF4 for contrast
 BUBBLE_BG_DEFAULT = (255, 255, 255)
 
-# Avatar
-AVATAR_X, AVATAR_Y = 20, 22
-AVATAR_SIZE = 96
-AVATAR_BOTTOM = AVATAR_Y + AVATAR_SIZE          # 118
+# Avatar — sized to match real QQ proportions (was 96, way too big vs bubble)
+AVATAR_X, AVATAR_Y = 16, 16
+AVATAR_SIZE = 56
+AVATAR_BOTTOM = AVATAR_Y + AVATAR_SIZE          # 72
 
 # Nickname — natural gray, positioned just above the bubble
-NICKNAME_X = 130                                # aligned with bubble left edge
-NICKNAME_Y = 18                                 # near top of the canvas
-NICKNAME_FONT_SIZE = 22
+NICKNAME_X = 86                                 # aligned with bubble left edge
+NICKNAME_Y = 14                                 # near top of the canvas
+NICKNAME_FONT_SIZE = 16
 NICKNAME_COLOR = (134, 140, 154)                # #868C9A muted gray-blue
 
 # Speech bubble
-BUBBLE_X = 130                                  # 14px gap right of avatar
-BUBBLE_Y = 56                                   # leaves ~16px gap below nickname
-BUBBLE_INNER_PAD = 20
-BUBBLE_RADIUS = 22
-BUBBLE_TAIL_Y_OFFSET = 22                       # tail aligns near avatar's upper half
+BUBBLE_X = 86                                   # 14px gap right of avatar
+BUBBLE_Y = 36                                   # ~6px gap below nickname
+BUBBLE_INNER_PAD = 16
+BUBBLE_RADIUS = 16
+BUBBLE_TAIL_Y_OFFSET = 14                       # tail aligns near avatar's upper half
 BUBBLE_FG = (34, 34, 38)
 # Floor below which a bubble would visually disappear into the page bg.
-# Keep this small — the real natural QQ look for "草" / "?" is a tight
-# square-ish bubble, not a fat 170px-wide block. Per-render code raises
-# this floor up to ~bubble_height for short single-line texts so the
-# bubble stays visually balanced with the avatar.
-BUBBLE_MIN_W = 60
+# Per-render code raises this floor up to ~bubble_height for short
+# single-line texts so the bubble stays visually balanced with the avatar.
+BUBBLE_MIN_W = 50
 # Keep bubble at least as tall as avatar bottom (+ a hair) so they feel balanced
-BUBBLE_MIN_H = (AVATAR_BOTTOM - BUBBLE_Y) + 12  # = 74
+BUBBLE_MIN_H = (AVATAR_BOTTOM - BUBBLE_Y) + 8   # = 44
 
 # Body text
-TEXT_FONT_SIZE = 32
-TEXT_LINE_SPACING = 10
-TEXT_MAX_WIDTH = 500                            # wrap width
+TEXT_FONT_SIZE = 28
+TEXT_LINE_SPACING = 8
+TEXT_MAX_WIDTH = 440                            # wrap width
 
 # Canvas margins
-CANVAS_RIGHT_PAD = 28
-CANVAS_BOTTOM_PAD = 24
+CANVAS_RIGHT_PAD = 20
+CANVAS_BOTTOM_PAD = 16
 
 
 def _parse_color(c: str, fallback: Tuple[int, int, int]) -> Tuple[int, int, int]:
