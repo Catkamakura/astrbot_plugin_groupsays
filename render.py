@@ -40,7 +40,12 @@ BUBBLE_INNER_PAD = 20
 BUBBLE_RADIUS = 22
 BUBBLE_TAIL_Y_OFFSET = 22                       # tail aligns near avatar's upper half
 BUBBLE_FG = (34, 34, 38)
-BUBBLE_MIN_W = 170
+# Floor below which a bubble would visually disappear into the page bg.
+# Keep this small — the real natural QQ look for "草" / "?" is a tight
+# square-ish bubble, not a fat 170px-wide block. Per-render code raises
+# this floor up to ~bubble_height for short single-line texts so the
+# bubble stays visually balanced with the avatar.
+BUBBLE_MIN_W = 60
 # Keep bubble at least as tall as avatar bottom (+ a hair) so they feel balanced
 BUBBLE_MIN_H = (AVATAR_BOTTOM - BUBBLE_Y) + 12  # = 74
 
@@ -150,11 +155,18 @@ def render_my_friend(
     name_w = int(font_name.getlength(name_display))
 
     # ── 3. Bubble dimensions ─────────────────────────────────────────
-    bubble_w = max(
-        text_w + BUBBLE_INNER_PAD * 2,
-        BUBBLE_MIN_W,
-    )
     bubble_h = max(text_h + BUBBLE_INNER_PAD * 2, BUBBLE_MIN_H)
+    # Width: snug to the text, but never below MIN_W (so a single dot or
+    # whitespace doesn't render as a sliver). For single-line short texts
+    # we additionally floor at bubble_h so the bubble stays roughly square
+    # — visually consistent with how QQ actually renders one-character
+    # replies. Multi-line texts skip this floor (they're already wide
+    # enough to look natural).
+    is_short_singleline = len(lines) == 1 and len(lines[0]) <= 6
+    width_floor = BUBBLE_MIN_W
+    if is_short_singleline:
+        width_floor = max(width_floor, bubble_h)
+    bubble_w = max(text_w + BUBBLE_INNER_PAD * 2, width_floor)
 
     # ── 4. Canvas dimensions (adaptive) ─────────────────────────────
     # Width must accommodate the wider of bubble or nickname
