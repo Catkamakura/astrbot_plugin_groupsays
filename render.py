@@ -33,17 +33,21 @@ NICKNAME_Y = 14                                 # near top of the canvas
 NICKNAME_FONT_SIZE = 16
 NICKNAME_COLOR = (134, 140, 154)                # #868C9A muted gray-blue
 
-# Speech bubble
+# Speech bubble — QQ "简洁模式" aesthetic:
+#   flat (no shadow / no outline), pill-shaped corners (radius ≈ height/2
+#   for short text), subtle tiny tail. The whole effect is "rounded chip"
+#   floating on a near-white page, with no z-depth gimmicks.
 BUBBLE_X = 86                                   # 14px gap right of avatar
 BUBBLE_Y = 36                                   # ~6px gap below nickname
 BUBBLE_INNER_PAD = 16
-BUBBLE_RADIUS = 14                              # slightly tighter for QQ feel
+# BUBBLE_RADIUS_MAX caps the radius for tall (multi-line) bubbles so they
+# don't end up looking like overinflated capsules. Short bubbles use
+# bubble_h / 2 → pill shape, matching the screenshot reference.
+BUBBLE_RADIUS_MAX = 22
 BUBBLE_TAIL_Y_OFFSET = 12                       # tail aligns near avatar's upper half
-BUBBLE_TAIL_W = 9                               # how far the tail protrudes left
-BUBBLE_TAIL_H = 14                              # vertical extent of the tail
+BUBBLE_TAIL_W = 5                               # tiny protrusion (was 9; QQ 简洁模式 nearly hides it)
+BUBBLE_TAIL_H = 10                              # smaller vertical extent
 BUBBLE_FG = (34, 34, 38)
-# Real QQ bubble has a barely-noticeable warm/cool tint, not pure white.
-# We use this default; users can override via canvas_bg / bubble_bg config.
 # Floor below which a bubble would visually disappear into the page bg.
 # Per-render code raises this floor up to ~bubble_height for short
 # single-line texts so the bubble stays visually balanced with the avatar.
@@ -51,16 +55,17 @@ BUBBLE_MIN_W = 50
 # Keep bubble at least as tall as avatar bottom (+ a hair) so they feel balanced
 BUBBLE_MIN_H = (AVATAR_BOTTOM - BUBBLE_Y) + 8   # = 44
 
-# ── QQ-style polish ─────────────────────────────────────────────────
-# Drop shadow under the bubble (mimics QQ's subtle z-depth).
-SHADOW_ENABLED = True
+# ── QQ 简洁模式 polish ──────────────────────────────────────────────
+# Both flags are OFF by default — 简洁模式 is fundamentally flat. Turning
+# either ON gets you a slight z-depth / contrast boost if you want a
+# more "iOS bubble" look.
+SHADOW_ENABLED = False
 SHADOW_COLOR = (0, 0, 0)
 SHADOW_OPACITY = 26                             # 0-255; ~10% black
 SHADOW_BLUR_RADIUS = 5                          # GaussianBlur radius
 SHADOW_OFFSET = (0, 2)                          # (dx, dy) from bubble origin
 
-# A faint 1px outline so the bubble doesn't dissolve into a light bg.
-OUTLINE_ENABLED = True
+OUTLINE_ENABLED = False
 OUTLINE_COLOR = (0, 0, 0, 18)                   # ~7% black
 OUTLINE_WIDTH = 1
 
@@ -336,15 +341,19 @@ def render_my_friend(
         font=font_name,
     )
 
-    # ── 7. Bubble (QQ-style: rounded body + curved ear-tail + drop shadow) ──
+    # ── 7. Bubble (QQ 简洁模式: pill-rounded, flat, tiny tail) ──
     bx0, by0 = BUBBLE_X, BUBBLE_Y
     bx1 = bx0 + int(bubble_w)
     by1 = by0 + int(bubble_h)
+    # Dynamic radius: short bubbles → bubble_h/2 (true pill shape, matches
+    # QQ 简洁模式 reference); tall bubbles → cap at BUBBLE_RADIUS_MAX so a
+    # multi-line block isn't an overinflated capsule.
+    effective_radius = min(int(bubble_h) // 2, BUBBLE_RADIUS_MAX)
     _composite_bubble(
         canvas,
         body_xy=(bx0, by0),
         body_wh=(int(bubble_w), int(bubble_h)),
-        radius=BUBBLE_RADIUS,
+        radius=effective_radius,
         fill=bubble_rgb,
         tail_y_offset=BUBBLE_TAIL_Y_OFFSET,
         tail_w=BUBBLE_TAIL_W,
