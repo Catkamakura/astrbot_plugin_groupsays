@@ -27,8 +27,13 @@ from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.message_components import Image
 from astrbot.api.star import Context, Star, register
 
+from pathlib import Path
+
+from astrbot.core.star.star_tools import StarTools
+
 from .fonts import ensure_font
 from .render import render_my_friend
+from .theme import discover_themes, load_theme_or_none
 from .utils import parse_at_and_text, sanitize_body, sanitize_nickname
 
 
@@ -59,6 +64,19 @@ class GroupSaysPlugin(Star):
         self.whitelist_qqs: set[str] = self._parse_csv(cfg.get("whitelist", ""))
         self.counter_attack: bool = bool(cfg.get("counter_attack", False))
         self.counter_attack_text: str = str(cfg.get("counter_attack_text", ""))
+
+        # Theme — empty string = programmatic render (default), otherwise
+        # name of a theme directory under user themes or bundled themes.
+        self.theme_name: str = str(cfg.get("theme", "")).strip()
+        plugin_dir = Path(__file__).parent
+        try:
+            data_dir = Path(StarTools.get_data_dir("astrbot_plugin_groupsays"))
+        except Exception:
+            data_dir = plugin_dir
+        self._theme_search_dirs: list[Path] = [
+            data_dir / "themes",        # user themes (writable)
+            plugin_dir / "themes",      # bundled themes (read-only)
+        ]
 
         logger.info(
             "[groupsays] loaded v0.2.2 — nickname<=%d, text<=%d, strip_emoji=%s, "
@@ -199,6 +217,17 @@ class GroupSaysPlugin(Star):
             yield event.plain_result(f"字体准备失败: {e}")
             return
 
+        # Optional theme — load fresh each render so file edits take
+        # effect immediately (debug-friendly, low overhead).
+        theme = None
+        if self.theme_name:
+            theme = load_theme_or_none(self.theme_name, self._theme_search_dirs)
+            if theme is None:
+                logger.warning(
+                    "[groupsays] theme %r not found — falling back to programmatic render",
+                    self.theme_name,
+                )
+
         # Render (blocking → thread)
         try:
             img_bytes = await asyncio.to_thread(
@@ -209,6 +238,7 @@ class GroupSaysPlugin(Star):
                 font_path,
                 canvas_bg=self.canvas_bg,
                 bubble_bg=self.bubble_bg,
+                theme=theme,
             )
         except Exception as e:
             logger.exception("[groupsays] render failed")

@@ -135,6 +135,84 @@ LLM 收到名字后用 `get_group_member_list` 在群里做模糊匹配（精确
 - [Smiley Sans 得意黑](https://github.com/atelier-anchor/smiley-sans)
 - [阿里巴巴普惠体 3.0](https://fonts.alibabagroup.com/)
 
+## 🎁 主题（实验性 · `qq-bubble` 分支）
+
+把 QQ 任意一张气泡图（或 Android `.9.png`）转成插件能用的主题。
+
+### 1. 准备一张气泡图
+
+来源（按"自动化程度"排序）：
+
+| 来源 | 自动程度 | 备注 |
+|---|---|---|
+| **Android `.9.png`** | 100% | Android Studio 的 9-patch tool 拖出 marker 边界，一次到位 |
+| **QQ APK 解包后的 `.9.png`** | 100% | 用 `apktool` / `unzip` 解 APK，找 `res/drawable-*/` 下的 `.9.png` |
+| **普通气泡 PNG（截图、网图、自己画的）** | 70-80% | 用启发式自动找 9-slice 边角；有时需要手调 manifest |
+
+### 2. 跑导入器
+
+```bash
+cd <plugin_dir>
+
+# .9.png（精确）
+python -m tools.import_theme path/to/bubble.9.png mytheme
+
+# 普通 PNG（启发式）
+python -m tools.import_theme path/to/bubble.png mytheme
+
+# 想批扫一个目录看哪些 PNG 像气泡（不写文件）
+python -m tools.import_theme path/to/apk_unzip/ --scan
+
+# 看检测结果不写文件
+python -m tools.import_theme bubble.png mytheme --dry-run
+
+# 写到不同目录
+python -m tools.import_theme bubble.png mytheme --out /path/to/themes
+```
+
+输出（默认 `./themes/<name>/`）：
+
+```
+themes/mytheme/
+├── manifest.json    # 9-slice padding + content padding + 文字色
+└── body.png         # 气泡本体
+```
+
+### 3. 启用
+
+把上面那个目录放到下面任一位置：
+
+- `<astrbot-data>/plugins/astrbot_plugin_groupsays/themes/<name>/`（用户层，推荐）
+- `<plugin_dir>/themes/<name>/`（捆绑层）
+
+然后在 AstrBot 的插件配置里把 `theme` 字段填成 `<name>` —— 立即生效，下次 `/群友说` 就用新气泡了。
+
+### 4. manifest.json 字段
+
+```json
+{
+  "name": "MyTheme",
+  "body": "body.png",
+  "padding_9slice":  [top, left, bottom, right],
+  "padding_content": [top, left, bottom, right],
+  "text_color": "#000000",
+  "min_size": [w, h]
+}
+```
+
+- `padding_9slice` —— 4 个角不缩放区域的像素数。9-slice 缩放时，这 4 块固定，剩下的边缘和中心被拉伸
+- `padding_content` —— 文字相对气泡边的内边距。一般等于或略大于 `padding_9slice`
+- `text_color` —— 文字颜色（覆盖 `BUBBLE_FG` 默认黑）
+- `min_size` —— 气泡最小尺寸（可选，0 表示无下限）
+
+启发式产出的 padding 不准时直接编辑这里，重启插件即可。
+
+### 已知局限
+
+- **启发式 9-slice 检测**对带渐变 / 噪点的气泡可能误判（落到 4px 下限），需要手编 manifest
+- **不解 Tencent 自家加密素材包**（`.zpkg` / `.skin` 这种）。能用的只是从 APK 直接 dump 出来的明文 `.png` / `.9.png`
+- **本分支（qq-bubble）尚未 merge 到 main**，要用得 `git checkout qq-bubble` 或在 v0.3 release 之后再升级
+
 ## 🛠️ 开发
 
 ```

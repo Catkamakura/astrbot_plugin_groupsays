@@ -15,6 +15,10 @@ from typing import List, Tuple
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+if False:
+    # forward-import for type checker; real import is lazy below
+    from .theme import Theme  # noqa: F401
+
 
 # ── Layout constants ──────────────────────────────────────────────────────
 
@@ -267,6 +271,7 @@ def render_my_friend(
     *,
     canvas_bg: str = "#E4E8F0",
     bubble_bg: str = "#FFFFFF",
+    theme: "Optional[Theme]" = None,
 ) -> bytes:
     """Render a group-chat 'my_friend' style image.
 
@@ -303,7 +308,17 @@ def render_my_friend(
     name_w = int(font_name.getlength(name_display))
 
     # ── 3. Bubble dimensions ─────────────────────────────────────────
-    bubble_h = max(text_h + BUBBLE_INNER_PAD * 2, BUBBLE_MIN_H)
+    # Themes override the inner padding (each side independently) so the
+    # text sits inside the theme's content rectangle, not in our default
+    # 16-px square padding.
+    if theme is not None:
+        ct, cl, cb, cr = theme.padding_content
+        pad_h = ct + cb
+        pad_w = cl + cr
+    else:
+        pad_h = BUBBLE_INNER_PAD * 2
+        pad_w = BUBBLE_INNER_PAD * 2
+    bubble_h = max(text_h + pad_h, BUBBLE_MIN_H)
     # Width: snug to the text, but never below MIN_W (so a single dot or
     # whitespace doesn't render as a sliver). For single-line short texts
     # we additionally floor at bubble_h so the bubble stays roughly square
@@ -314,7 +329,11 @@ def render_my_friend(
     width_floor = BUBBLE_MIN_W
     if is_short_singleline:
         width_floor = max(width_floor, bubble_h)
-    bubble_w = max(text_w + BUBBLE_INNER_PAD * 2, width_floor)
+    bubble_w = max(text_w + pad_w, width_floor)
+    # If theme has min_size, respect it
+    if theme is not None and theme.min_size != (0, 0):
+        bubble_w = max(bubble_w, theme.min_size[0])
+        bubble_h = max(bubble_h, theme.min_size[1])
 
     # ── 4. Canvas dimensions (adaptive) ─────────────────────────────
     # Width must accommodate the wider of bubble or nickname
@@ -341,24 +360,35 @@ def render_my_friend(
         font=font_name,
     )
 
-    # ── 7. Bubble (QQ 简洁模式: pill-rounded, flat, tiny tail) ──
+    # ── 7. Bubble ─────────────────────────────────────────────────────
     bx0, by0 = BUBBLE_X, BUBBLE_Y
     bx1 = bx0 + int(bubble_w)
     by1 = by0 + int(bubble_h)
-    # Dynamic radius: short bubbles → bubble_h/2 (true pill shape, matches
-    # QQ 简洁模式 reference); tall bubbles → cap at BUBBLE_RADIUS_MAX so a
-    # multi-line block isn't an overinflated capsule.
-    effective_radius = min(int(bubble_h) // 2, BUBBLE_RADIUS_MAX)
-    _composite_bubble(
-        canvas,
-        body_xy=(bx0, by0),
-        body_wh=(int(bubble_w), int(bubble_h)),
-        radius=effective_radius,
-        fill=bubble_rgb,
-        tail_y_offset=BUBBLE_TAIL_Y_OFFSET,
-        tail_w=BUBBLE_TAIL_W,
-        tail_h=BUBBLE_TAIL_H,
-    )
+    if theme is not None:
+        # Theme path: 9-slice scale the user's bubble image to fit the
+        # measured (text + padding) box, then alpha-paste at (bx0, by0).
+        from .theme import render_9slice as _theme_9slice
+        themed_bubble = _theme_9slice(
+            theme.body_image,
+            (int(bubble_w), int(bubble_h)),
+            theme.padding_9slice,
+        )
+        canvas_rgba = canvas.convert("RGBA")
+        canvas_rgba.alpha_composite(themed_bubble, dest=(bx0, by0))
+        canvas.paste(canvas_rgba.convert("RGB"))
+    else:
+        # Programmatic path: QQ 简洁模式 pill-rounded, flat, tiny tail.
+        effective_radius = min(int(bubble_h) // 2, BUBBLE_RADIUS_MAX)
+        _composite_bubble(
+            canvas,
+            body_xy=(bx0, by0),
+            body_wh=(int(bubble_w), int(bubble_h)),
+            radius=effective_radius,
+            fill=bubble_rgb,
+            tail_y_offset=BUBBLE_TAIL_Y_OFFSET,
+            tail_w=BUBBLE_TAIL_W,
+            tail_h=BUBBLE_TAIL_H,
+        )
     # ImageDraw cache — _composite_bubble may have rebuilt the canvas
     # via .paste()/.convert() round-trips, so refresh `draw`.
     draw = ImageDraw.Draw(canvas)
@@ -366,10 +396,11 @@ def render_my_friend(
     # ── 8. Body text — centered in bubble, bearing-compensated ───────
     text_cx = bx0 + (int(bubble_w) - text_w) // 2 - tb[0]
     text_cy = by0 + (int(bubble_h) - text_h) // 2 - tb[1]
+    text_fill = theme.text_color if theme is not None else BUBBLE_FG
     draw.multiline_text(
         (text_cx, text_cy),
         wrapped,
-        fill=BUBBLE_FG,
+        fill=text_fill,
         font=font_text,
         spacing=TEXT_LINE_SPACING,
         align="left",

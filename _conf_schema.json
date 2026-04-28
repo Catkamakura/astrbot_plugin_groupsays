@@ -46,6 +46,7 @@
   "bubble_bg": {
     "description": "气泡背景色（hex 或 white / black）",
     "type": "string",
+    "hint": "仅在未设置 theme 时生效",
     "default": "#FFFFFF"
   },
   "canvas_bg": {
@@ -53,5 +54,12 @@
     "type": "string",
     "hint": "QQ 默认聊天页背景接近 #E4E8F0",
     "default": "#E4E8F0"
+  },
+
+  "theme": {
+    "description": "气泡主题名（高级）",
+    "type": "string",
+    "hint": "留空 = 用程序绘制的简洁圆角气泡（默认）。设置为某个主题目录名 = 用 9-slice 缩放该主题图作为气泡。主题查找路径：plugin_data/astrbot_plugin_groupsays/themes/<name> > <plugin>/themes/<name>。详见 README 的『主题』段。",
+    "default": ""
   }
 }
