@@ -1,86 +1,147 @@
+<div align="center">
+
 # astrbot_plugin_groupsays
 
-轻量"群友说"表情包生成器 — `@某人 + 一段话` → 生成 my_friend 风格的聊天气泡图。
+_✨ 把群友 + 一段话 渲染成 my_friend 风格的聊天气泡表情包 ✨_
 
-目前仅适配 **NapCat / OneBot v11**。
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A54.5-orange.svg)](https://github.com/AstrBotDevs/AstrBot)
+[![Platform](https://img.shields.io/badge/Platform-aiocqhttp%20%2F%20OneBot%20v11-lightgrey)](https://github.com/AstrBotDevs/AstrBot)
+[![GitHub](https://img.shields.io/badge/Repo-Catkamakura%2Fastrbot__plugin__groupsays-brightgreen)](https://github.com/Catkamakura/astrbot_plugin_groupsays)
 
-## 用法
+</div>
 
-### 1. 斜杠命令
+---
+
+## 💡 介绍
+
+`/群友说 @某人 牛逼`，自动生成下面这种聊天截图风格的表情包：
 
 ```
-/群友说 @某人 要说的话
+[圆形头像]   群友昵称
+            ┌──────────┐
+            │   牛逼   │
+            └──────────┘
 ```
 
-多 @ 只取第一个。仅支持文本正文。
+两个入口都通向同一个渲染管线：
 
-### 2. LLM 自然语言调用
+1. **斜杠命令** —— `/群友说 @某人 要说的话`
+2. **LLM 函数调用** —— 用户对 LLM 自然语言说"帮我做 张三 说『睡了』的表情包"，LLM 会自动调用 `generate_groupsays_meme` 工具，按昵称模糊匹配到群友 QQ 号再生成
 
-工具 `generate_groupsays_meme` 会自动注册给 LLM，用户可以直接说：
+支持权限层（白名单 / 豁免 / 反弹反击）。
 
-- "帮我生成一个 小明 说"牛逼"的表情包"
-- "做一张 张三 说"我先睡了" 的群友说"
+> **平台**：仅支持 `aiocqhttp`（NapCat / OneBot v11）。其他平台没有等价的"群成员头像 / 昵称"API。
 
-LLM 会自动把名字 → QQ 号（模糊匹配群成员列表）并调用工具。
+## 📦 安装
 
-## 豁免与反击
+### 在 AstrBot 插件市场
 
-- **豁免列表**：在配置里填 QQ 号（逗号分隔），这些人不会被生成。
-- **反击功能**：开启后，对豁免列表成员使用时，会**反弹到命令发起者**，生成「发起者说 XXX」的表情包。
+搜索 `groupsays` → 点击安装。
 
-## 特性
+### 通过命令行
 
-- 圆形头像 + 群昵称（自动通过 OneBot `get_group_member_info` 查询）
-- 昵称清洗：移除 emoji、零宽字符、双向控制字符等"逆天昵称"
-- CJK 友好的逐字换行
-- 正文最多 200 字（可配置）
-- 首次使用自动下载字体（思源黑体 CN Regular, ~11MB），后续缓存
+```
+plugin i https://github.com/Catkamakura/astrbot_plugin_groupsays
+```
 
-## 配置
+首次使用会自动下载思源黑体 CN（约 11MB）作为渲染字体；如不希望下载，把任意 `.ttf` / `.otf` / `.ttc` 文件放到 `<plugin_dir>/fonts/` 即可优先使用。
 
-在 AstrBot 面板的插件管理 → 本插件 → 编辑配置：
+## ⚙️ 配置
 
-| 配置项 | 默认 | 说明 |
+| 配置项 | 默认值 | 说明 |
 |---|---|---|
-| `max_nickname_length` | 20 | 群昵称最大长度 |
-| `max_text_length` | 200 | 正文最大长度 |
-| `strip_emoji_in_nickname` | `true` | 清除昵称中的 emoji |
-| `command_aliases` | `群友说` | 命令别名，逗号分隔 |
+| `max_nickname_length` | `20` | 群昵称最大长度，超出截断 |
+| `max_text_length` | `200` | 正文最大长度，超出截断 |
+| `strip_emoji_in_nickname` | `true` | 清除昵称里的 emoji（避免渲染成 □） |
+| `exemption_list` | `""` | 豁免名单（QQ 号逗号分隔），名单里的人不能被生成 |
+| `whitelist` | `""` | 白名单（QQ 号逗号分隔），无视豁免限制 |
+| `counter_attack` | `false` | 反弹反击：对豁免成员使用时改为生成『命令发起者』自己 |
+| `counter_attack_text` | `""` | 反击时附加在文本前的固定前缀（可选） |
 | `bubble_bg` | `#FFFFFF` | 气泡颜色 |
-| `canvas_bg` | `#EBEBEB` | 画布颜色 |
+| `canvas_bg` | `#E4E8F0` | 画布背景色（≈ QQ 默认聊天页背景） |
 
-## 自定义字体
+权限优先级（在豁免冲突时）：
 
-默认会自动下载思源黑体。如需手动指定字体：
+```
+白名单 > 豁免 > 反弹反击
+```
 
-把任意 `.ttf` 或 `.otf` 文件放到插件目录的 `fonts/` 下即可（会优先使用）。
+也就是说白名单用户即便对豁免成员动手也能生成；普通用户碰到豁免成员要么被拒，要么（开启反击时）反弹回自己。
+
+## ⌨️ 使用
+
+### 1. 直接命令
+
+```
+/群友说 @某人 你刚说什么
+```
+
+- 多个 `@` 只取**第一个**
+- 仅支持文本正文，会先做一轮昵称 / 正文清洗（去 zero-width / bidi / control char，可选去 emoji）
+
+### 2. 让 LLM 调用
+
+把一段自然语言交给 LLM，它会自己挑工具：
+
+> 帮我生成 张三 说"我先睡了"的表情包  
+> 做一张 老王 说"鼠鼠我啊" 的群友说
+
+LLM 收到名字后用 `get_group_member_list` 在群里做模糊匹配（精确 → 前缀 → 子串，同名取最短），再按 QQ 号走相同的渲染管线。
+
+## 🎨 自定义字体
+
+把任意 `.ttf` / `.otf` / `.ttc` 文件放到 `<plugin_dir>/fonts/`，插件会优先使用。
+
+字体优先级：
+
+1. `<plugin_dir>/fonts/` 下的任意字体文件
+2. 系统 Noto CJK / WenQuanYi / PingFang / Microsoft YaHei
+3. 自动从 Adobe 官方仓库下载思源黑体 CN（兜底）
 
 推荐字体：
-- [LXGW WenKai](https://github.com/lxgw/LxgwWenKai)
+
+- [LXGW WenKai 霞鹜文楷](https://github.com/lxgw/LxgwWenKai)
 - [Smiley Sans 得意黑](https://github.com/atelier-anchor/smiley-sans)
 - [阿里巴巴普惠体 3.0](https://fonts.alibabagroup.com/)
 
-## 开发
+## 🛠️ 开发
 
 ```
 astrbot_plugin_groupsays/
-├── main.py           # 插件入口
-├── utils.py          # 昵称清洗 + 事件解析
-├── render.py         # 图片合成
-├── fonts.py          # 字体发现 / 下载
+├── main.py              # @register 入口，命令 + LLM tool + pipeline
+├── utils.py             # 消息解析 + 昵称/正文清洗（NFKC、去 zero-width 等）
+├── render.py            # Pillow 图片合成（圆形头像、气泡 + 尾巴、CJK 换行）
+├── fonts.py             # 字体发现 / 系统候选 / 首次下载
 ├── metadata.yaml
 ├── requirements.txt
 ├── _conf_schema.json
-└── fonts/            # 自定义字体目录
+└── fonts/               # 用户字体覆盖（默认空）
 ```
 
-## TODO
+依赖：`Pillow >= 10`、`httpx >= 0.25`、AstrBot `>= 4.5`。
 
-- [ ] 支持"回复某人 + 文本"不 @ 的用法
-- [ ] 多 At 轮流说话（对话截图风格）
-- [ ] 多模板（举牌、看板娘）
-- [ ] emoji 彩色渲染（pilmoji）
+## 📜 更新日志
 
-## License
+### v0.2.2
+
+- 修复单字（如 `草` / `?`）渲染成 170px 宽的"长方形"问题；现在按文本长度自适应宽度
+- 整体重新校准成真实 QQ 比例：avatar 96 → 56，正文字号 32 → 28，昵称字号 22 → 16，等
+- 修复 `command_aliases` 配置实际未生效（已从 schema 删除）
+- README 重写为 AstrBot 社区风格 header + 完整命令矩阵 + 故障排查
+- `metadata.yaml` 升级到 v4.5+ 标准（`display_name` / `astrbot_version` / `support_platforms`）
+
+### v0.2.1
+
+- 加入豁免 / 白名单 / 反弹反击三层权限
+- 加 `generate_groupsays_meme` LLM tool 入口
+- 头像 / 昵称并行抓取
+
+### v0.1.0
+
+- 首版：基础 `/群友说 @某人 文本` → 渲染输出
+
+## 📄 License
 
 MIT

@@ -2,59 +2,56 @@
   "max_nickname_length": {
     "description": "群昵称最大长度",
     "type": "int",
-    "hint": "超过会截断并加省略号",
+    "hint": "超过会截断并加 …",
     "default": 20
   },
   "max_text_length": {
-    "description": "正文最大长度",
+    "description": "正文最大长度（字符数）",
     "type": "int",
-    "hint": "超过会截断",
+    "hint": "超过会截断并加 …",
     "default": 200
   },
   "strip_emoji_in_nickname": {
     "description": "清除昵称中的 emoji",
     "type": "bool",
-    "hint": "默认移除；关闭后未渲染的 emoji 会显示为 □",
+    "hint": "默认开启；关掉的话未渲染的 emoji 会显示成 □（字体里没有该 codepoint）",
     "default": true
   },
-  "command_aliases": {
-    "description": "命令别名（逗号分隔）",
-    "type": "string",
-    "hint": "例如: 群友说,说,quote",
-    "default": "群友说"
-  },
+
   "exemption_list": {
-    "description": "豁免列表 (QQ号，逗号分隔)",
+    "description": "豁免列表（QQ 号，逗号分隔）",
     "type": "string",
-    "hint": "名单里的 QQ 号不会被生成群友说",
+    "hint": "名单里的 QQ 号不会被生成『群友说』。例如群主 / bot 自己的号",
     "default": ""
   },
   "whitelist": {
-    "description": "白名单 (QQ号，逗号分隔)",
+    "description": "白名单（QQ 号，逗号分隔）",
     "type": "string",
-    "hint": "白名单用户无视豁免列表，可以对任何人（包括豁免成员和自己）生成群友说",
+    "hint": "白名单用户无视豁免列表，可以对任何人（包括豁免成员和自己）生成『群友说』。一般填管理员",
     "default": ""
   },
   "counter_attack": {
-    "description": "反击功能",
+    "description": "反弹反击",
     "type": "bool",
-    "hint": "对豁免名单成员使用时，改为生成命令发起者自己的群友说",
+    "hint": "对豁免名单成员使用时，自动改为生成『命令发起者』自己的群友说",
     "default": false
   },
   "counter_attack_text": {
-    "description": "反击时附加前缀（可选）",
+    "description": "反击时附加在文本前的前缀（可选）",
     "type": "string",
-    "hint": "发送者的台词前会加上这段文字，留空则只用用户输入",
+    "hint": "示例：『（自取）』『打回去：』。留空则只用原始文本",
     "default": ""
   },
+
   "bubble_bg": {
-    "description": "气泡背景色 (hex 或 'white')",
+    "description": "气泡背景色（hex 或 white / black）",
     "type": "string",
     "default": "#FFFFFF"
   },
   "canvas_bg": {
-    "description": "画布背景色 (hex)",
+    "description": "画布背景色（hex）",
     "type": "string",
+    "hint": "QQ 默认聊天页背景接近 #E4E8F0",
     "default": "#E4E8F0"
   }
 }

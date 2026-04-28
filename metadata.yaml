@@ -1,5 +1,12 @@
-name: astrbot_plugin_groupsays
-desc: "群友说 表情包生成器 — @某人 + 一段话 → my_friend 风格聊天气泡图"
-version: 0.2.1
+name: astrbot_plugin_groupsays            # 唯一标识名，必须以 astrbot_plugin_ 前缀
+display_name: 群友说                       # WebUI 展示名（AstrBot >= v4.5.0）
+desc: "把 @某人 + 一段话 渲染成 my_friend 风格的聊天气泡图。支持 LLM 自然语言调用、白名单 / 豁免 / 反弹反击。"
+help: |
+  /群友说 @某人 要说的话
+  或者直接对 LLM 说："帮我生成 张三 说『我先睡了』的表情包"
+version: v0.2.2
 author: Yukin
-repo: ""
+repo: https://github.com/Catkamakura/astrbot_plugin_groupsays
+astrbot_version: ">=4.5.0"
+support_platforms:
+  - aiocqhttp                              # OneBot v11 / NapCat

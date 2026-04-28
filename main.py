@@ -1,9 +1,18 @@
 """astrbot_plugin_groupsays — main entry.
 
-Entry points:
-    1. ``/群友说 @某人 要说的话``           — slash command in group chat
-    2. ``generate_groupsays_meme`` LLM tool — so the model can invoke it
-       naturally from phrases like "帮我生成一个 xxx 说 yyy 的表情包"
+Two entry points to the same render pipeline:
+
+1. ``/群友说 @某人 要说的话`` — slash command (group chat only)
+2. ``generate_groupsays_meme`` LLM tool — registered as a function-call
+   tool so the LLM can invoke it from natural-language phrasing like
+   "帮我生成一个 xxx 说 yyy 的表情包".
+
+Both paths converge on ``_run_pipeline``: sanitize → permission-check
+(whitelist / exemption / counter-attack) → fetch nickname & avatar in
+parallel → blocking PIL render in a thread → return as image chain.
+
+Platform support: aiocqhttp (NapCat / OneBot v11) only. The avatar URL,
+nickname lookup, and member-list APIs are all OneBot-specific.
 """
 
 from __future__ import annotations
@@ -32,8 +41,8 @@ ONEBOT_PLATFORM_NAME = "aiocqhttp"
     "astrbot_plugin_groupsays",
     "Yukin",
     "群友说 表情包生成器 — @某人 或让 LLM 指定群友 + 一段话 → 聊天气泡图",
-    "0.2.0",
-    "",
+    "v0.2.2",
+    "https://github.com/Catkamakura/astrbot_plugin_groupsays",
 )
 class GroupSaysPlugin(Star):
     def __init__(self, context: Context, config: Optional[dict] = None):
@@ -52,11 +61,22 @@ class GroupSaysPlugin(Star):
         self.counter_attack_text: str = str(cfg.get("counter_attack_text", ""))
 
         logger.info(
-            "[groupsays] loaded v0.2.1 — nickname<=%d, text<=%d, strip_emoji=%s, "
+            "[groupsays] loaded v0.2.2 — nickname<=%d, text<=%d, strip_emoji=%s, "
             "exempt=%d, whitelist=%d, counter=%s",
             self.max_nickname_len, self.max_text_len, self.strip_emoji,
             len(self.exemption_qqs), len(self.whitelist_qqs), self.counter_attack,
         )
+
+    async def terminate(self) -> None:
+        """Lifecycle hook called when the plugin is unloaded / disabled.
+
+        Nothing stateful to clean up — there are no background tasks,
+        no open connections, no scheduled jobs. The httpx client used
+        by ``_fetch_avatar`` is short-lived (created per-request), and
+        the font cache lives in ``fonts._cached_path`` which is
+        process-global.
+        """
+        return None
 
     # ── Entry 1: slash command ────────────────────────────────────────
 
