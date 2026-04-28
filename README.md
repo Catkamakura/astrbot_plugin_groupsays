@@ -36,17 +36,46 @@ _✨ 把群友 + 一段话 渲染成 my_friend 风格的聊天气泡表情包 �
 
 ## 📦 安装
 
-### 在 AstrBot 插件市场
+> 本插件**不在 AstrBot 插件市场**（作者没空走 human review 流程），请用以下任一方式手动安装。装完都需要在 AstrBot 控制台 / WebUI **重载插件**或重启 AstrBot 才会生效。
 
-搜索 `groupsays` → 点击安装。
+### 方式 1 · WebUI 安装（推荐）
 
-### 通过命令行
+1. 打开 AstrBot 管理面板 → **插件管理** → **安装插件**
+2. 选择 **"从 URL 安装"**，粘贴：
+   ```
+   https://github.com/Catkamakura/astrbot_plugin_groupsays
+   ```
+3. 等待克隆完成。WebUI 会自动 pip 安装 `requirements.txt`。
+
+### 方式 2 · 聊天命令安装
+
+在 AstrBot 能监听的群聊或私聊里（管理员账号）发送：
 
 ```
-plugin i https://github.com/Catkamakura/astrbot_plugin_groupsays
+/plugin i https://github.com/Catkamakura/astrbot_plugin_groupsays
 ```
 
-首次使用会自动下载思源黑体 CN（约 11MB）作为渲染字体；如不希望下载，把任意 `.ttf` / `.otf` / `.ttc` 文件放到 `<plugin_dir>/fonts/` 即可优先使用。
+### 方式 3 · 手动 git clone
+
+适合喜欢自己 pull / 改代码的用户。在 AstrBot 的 data 目录下：
+
+```bash
+cd <astrbot-data>/plugins/
+git clone https://github.com/Catkamakura/astrbot_plugin_groupsays.git
+pip install -r astrbot_plugin_groupsays/requirements.txt
+# 然后在 WebUI 里点重载插件，或重启 AstrBot
+```
+
+> `<astrbot-data>` 视部署方式而定：Docker 是 `astrbot-data` 卷挂载点（容器内 `/AstrBot/data`），裸装是 AstrBot 安装目录下的 `data/`。
+
+### 升级 / 更新
+
+- **方式 1 / 2**：在 WebUI 插件管理点更新即可
+- **方式 3**：`cd astrbot_plugin_groupsays && git pull` 后重载
+
+### 字体说明
+
+首次渲染会自动从 Adobe 官方仓库下载思源黑体 CN（约 11MB）作为兜底字体。如果不希望联网下载或想用别的字体，把任意 `.ttf` / `.otf` / `.ttc` 文件放到 `<plugin_dir>/fonts/`，插件会优先使用。详见下方 [🎨 自定义字体](#-自定义字体)。
 
 ## ⚙️ 配置
 
