@@ -13,7 +13,7 @@ from __future__ import annotations
 from io import BytesIO
 from typing import List, Tuple
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 
 # ── Layout constants ──────────────────────────────────────────────────────
@@ -37,15 +37,32 @@ NICKNAME_COLOR = (134, 140, 154)                # #868C9A muted gray-blue
 BUBBLE_X = 86                                   # 14px gap right of avatar
 BUBBLE_Y = 36                                   # ~6px gap below nickname
 BUBBLE_INNER_PAD = 16
-BUBBLE_RADIUS = 16
-BUBBLE_TAIL_Y_OFFSET = 14                       # tail aligns near avatar's upper half
+BUBBLE_RADIUS = 14                              # slightly tighter for QQ feel
+BUBBLE_TAIL_Y_OFFSET = 12                       # tail aligns near avatar's upper half
+BUBBLE_TAIL_W = 9                               # how far the tail protrudes left
+BUBBLE_TAIL_H = 14                              # vertical extent of the tail
 BUBBLE_FG = (34, 34, 38)
+# Real QQ bubble has a barely-noticeable warm/cool tint, not pure white.
+# We use this default; users can override via canvas_bg / bubble_bg config.
 # Floor below which a bubble would visually disappear into the page bg.
 # Per-render code raises this floor up to ~bubble_height for short
 # single-line texts so the bubble stays visually balanced with the avatar.
 BUBBLE_MIN_W = 50
 # Keep bubble at least as tall as avatar bottom (+ a hair) so they feel balanced
 BUBBLE_MIN_H = (AVATAR_BOTTOM - BUBBLE_Y) + 8   # = 44
+
+# ── QQ-style polish ─────────────────────────────────────────────────
+# Drop shadow under the bubble (mimics QQ's subtle z-depth).
+SHADOW_ENABLED = True
+SHADOW_COLOR = (0, 0, 0)
+SHADOW_OPACITY = 26                             # 0-255; ~10% black
+SHADOW_BLUR_RADIUS = 5                          # GaussianBlur radius
+SHADOW_OFFSET = (0, 2)                          # (dx, dy) from bubble origin
+
+# A faint 1px outline so the bubble doesn't dissolve into a light bg.
+OUTLINE_ENABLED = True
+OUTLINE_COLOR = (0, 0, 0, 18)                   # ~7% black
+OUTLINE_WIDTH = 1
 
 # Body text
 TEXT_FONT_SIZE = 28
@@ -98,6 +115,134 @@ def _wrap_cjk(text: str, font: ImageFont.FreeTypeFont, max_width: int) -> List[s
         if cur:
             lines.append(cur)
     return lines
+
+
+def _build_bubble_mask(
+    width: int,
+    height: int,
+    radius: int,
+    *,
+    tail_y: int,
+    tail_w: int,
+    tail_h: int,
+) -> Image.Image:
+    """Return an alpha mask (mode='L') with the QQ-style bubble silhouette.
+
+    The silhouette = rounded-rectangle ∪ tail. Tail is a small leaf-like
+    shape on the LEFT side, centered vertically at ``tail_y``, protruding
+    ``tail_w`` pixels outward. Using a mask keeps anti-aliasing consistent
+    between body and tail and lets us blur it cleanly for the drop shadow.
+
+    Output is sized ``(width + tail_w, height)`` so the tail has room.
+    """
+    canvas_w = width + tail_w
+    canvas_h = height
+    mask = Image.new("L", (canvas_w, canvas_h), 0)
+    md = ImageDraw.Draw(mask)
+    # Bubble body — shifted right by tail_w so the tail can protrude left
+    md.rounded_rectangle(
+        (tail_w, 0, tail_w + width - 1, height - 1),
+        radius=radius,
+        fill=255,
+    )
+    # Tail — a curved "ear" instead of a sharp triangle. Approximated with
+    # an ellipse trimmed by overlap with the bubble body.
+    # Anchor: left edge of the bubble body.
+    tail_top = tail_y - tail_h // 2
+    tail_bot = tail_y + tail_h // 2
+    # Outer ellipse extends LEFT of the body, into the canvas's leftmost
+    # tail_w pixels. We make it wider than tail_w so its rightmost edge
+    # blends into the body.
+    md.ellipse(
+        (0, tail_top, tail_w * 2, tail_bot),
+        fill=255,
+    )
+    # Top inner corner: a small notch to keep the tail from looking
+    # like a perfect circle pasted on the side. Carve out a rounded
+    # bite where the tail meets the body's top edge.
+    md.ellipse(
+        (
+            tail_w - 2,
+            tail_top - tail_h // 3,
+            tail_w + 4,
+            tail_top + tail_h // 3,
+        ),
+        fill=0,
+    )
+    return mask
+
+
+def _composite_bubble(
+    canvas: Image.Image,
+    *,
+    body_xy: Tuple[int, int],
+    body_wh: Tuple[int, int],
+    radius: int,
+    fill: Tuple[int, int, int],
+    tail_y_offset: int,
+    tail_w: int,
+    tail_h: int,
+) -> None:
+    """Paint a QQ-style bubble (body + curved tail + drop shadow + outline)
+    onto ``canvas`` in place.
+
+    Order of operations:
+      1. Build alpha-mask silhouette (rounded-rect ∪ ear-shaped tail).
+      2. Render drop shadow: blur the mask, paint as low-alpha black,
+         offset by SHADOW_OFFSET.
+      3. Render body: paint solid fill via the mask.
+      4. Render outline: stroke the mask boundary with low-alpha black.
+    """
+    bx, by = body_xy
+    bw, bh = body_wh
+    mask = _build_bubble_mask(
+        bw, bh, radius,
+        tail_y=tail_y_offset,
+        tail_w=tail_w, tail_h=tail_h,
+    )
+    # Place the mask so the body is at (bx, by) and the tail extends
+    # tail_w pixels to the LEFT of bx.
+    paste_x = bx - tail_w
+    paste_y = by
+
+    # 1. Drop shadow (paint blurred mask as low-alpha black behind body).
+    if SHADOW_ENABLED:
+        shadow_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+        # Build a same-size mask shifted into canvas coordinates.
+        shadow_mask = Image.new("L", canvas.size, 0)
+        shadow_mask.paste(mask, (paste_x + SHADOW_OFFSET[0], paste_y + SHADOW_OFFSET[1]))
+        shadow_mask = shadow_mask.filter(
+            ImageFilter.GaussianBlur(radius=SHADOW_BLUR_RADIUS)
+        )
+        shadow_color_layer = Image.new(
+            "RGBA", canvas.size,
+            (*SHADOW_COLOR, SHADOW_OPACITY),
+        )
+        shadow_layer.paste(shadow_color_layer, (0, 0), shadow_mask)
+        # Composite shadow under the rest. canvas is RGB; convert temp.
+        canvas_rgba = canvas.convert("RGBA")
+        canvas_rgba.alpha_composite(shadow_layer)
+        # Write back to original canvas as RGB.
+        canvas.paste(canvas_rgba.convert("RGB"))
+
+    # 2. Body — solid fill via mask.
+    body_layer = Image.new("RGBA", mask.size, (*fill, 255))
+    canvas.paste(body_layer, (paste_x, paste_y), mask)
+
+    # 3. Outline — stroke the mask boundary at low opacity. Subtle but
+    # makes the bubble pop on light backgrounds.
+    if OUTLINE_ENABLED and OUTLINE_COLOR[3] > 0:
+        # Edge = mask - eroded(mask), approximated by subtracting a
+        # 1px-blurred copy. Cheap but works.
+        from PIL import ImageChops
+        eroded = mask.filter(ImageFilter.MinFilter(3))
+        edge = ImageChops.subtract(mask, eroded)
+        outline_layer = Image.new("RGBA", mask.size, OUTLINE_COLOR)
+        canvas_rgba = canvas.convert("RGBA")
+        outline_paste = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+        outline_paste.paste(outline_layer, (paste_x, paste_y), edge)
+        canvas_rgba.alpha_composite(outline_paste)
+        canvas.paste(canvas_rgba.convert("RGB"))
 
 
 def _circular_crop(img: Image.Image, size: int) -> Image.Image:
@@ -191,20 +336,23 @@ def render_my_friend(
         font=font_name,
     )
 
-    # ── 7. Bubble ────────────────────────────────────────────────────
+    # ── 7. Bubble (QQ-style: rounded body + curved ear-tail + drop shadow) ──
     bx0, by0 = BUBBLE_X, BUBBLE_Y
     bx1 = bx0 + int(bubble_w)
     by1 = by0 + int(bubble_h)
-    draw.rounded_rectangle(
-        (bx0, by0, bx1, by1), radius=BUBBLE_RADIUS, fill=bubble_rgb
-    )
-
-    # Tail: left-pointing triangle near top of bubble, aimed at avatar
-    tail_y = by0 + BUBBLE_TAIL_Y_OFFSET
-    draw.polygon(
-        [(bx0, tail_y), (bx0 - 10, tail_y + 7), (bx0, tail_y + 14)],
+    _composite_bubble(
+        canvas,
+        body_xy=(bx0, by0),
+        body_wh=(int(bubble_w), int(bubble_h)),
+        radius=BUBBLE_RADIUS,
         fill=bubble_rgb,
+        tail_y_offset=BUBBLE_TAIL_Y_OFFSET,
+        tail_w=BUBBLE_TAIL_W,
+        tail_h=BUBBLE_TAIL_H,
     )
+    # ImageDraw cache — _composite_bubble may have rebuilt the canvas
+    # via .paste()/.convert() round-trips, so refresh `draw`.
+    draw = ImageDraw.Draw(canvas)
 
     # ── 8. Body text — centered in bubble, bearing-compensated ───────
     text_cx = bx0 + (int(bubble_w) - text_w) // 2 - tb[0]
